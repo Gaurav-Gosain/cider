@@ -26,8 +26,10 @@ jobs:
           go-version-file: go.mod
           cache: true
 
-      - name: select Xcode
-        run: sudo xcode-select -s /Applications/Xcode.app
+      - name: select Xcode 26.4.1
+        # Package.swift requires swift-tools-version 6.2 which lives in
+        # Xcode 26.4+. The runner default is Xcode 26.2 (Swift 6.1).
+        run: sudo xcode-select -s /Applications/Xcode_26.4.1.app
 
       # When HOMEBREW_TAP_GITHUB_TOKEN is missing the brew formula
       # update is skipped so the GitHub release still goes through.
