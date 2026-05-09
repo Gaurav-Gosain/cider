@@ -1,0 +1,170 @@
+# GoReleaser configuration for cider.
+# Documentation: https://goreleaser.com
+#
+# cider is macOS-arm64-only because it links to Apple's Foundation
+# Models via a Swift dylib that ships only on macOS 26+. The `before`
+# hook builds that dylib so it gets bundled into the release archive
+# next to the Go binary; the brew formula installs both into libexec/
+# and exposes a shim from bin/.
+
+version: 2
+
+project_name: cider
+
+before:
+  hooks:
+    - go mod tidy
+    - sh -c "cd foundation-models-c && swift build -c release"
+
+builds:
+  - id: cider
+    main: .
+    binary: cider
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - darwin
+    goarch:
+      - arm64
+    ldflags:
+      - -s -w
+      - -X main.version={{.Version}}
+      - -X main.commit={{.Commit}}
+      - -X main.date={{.Date}}
+      - -X main.builtBy=goreleaser
+    flags:
+      - -trimpath
+
+archives:
+  - id: cider-archive
+    ids:
+      - cider
+    name_template: >-
+      {{ .ProjectName }}_
+      {{- .Version }}_
+      {{- title .Os }}_
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else if eq .Arch "386" }}i386
+      {{- else }}{{ .Arch }}{{ end }}
+    files:
+      - README.md
+      - LICENSE*
+      - src: foundation-models-c/.build/arm64-apple-macosx/release/libFoundationModels.dylib
+        dst: libFoundationModels.dylib
+
+checksum:
+  name_template: "checksums.txt"
+  algorithm: sha256
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-next"
+
+changelog:
+  sort: asc
+  use: github
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^ci:"
+      - "^chore:"
+      - Merge pull request
+      - Merge remote-tracking branch
+      - Merge branch
+  groups:
+    - title: "New Features"
+      regexp: '^.*?feat(\([[:word:]]+\))??!?:.+$'
+      order: 0
+    - title: "Bug Fixes"
+      regexp: '^.*?fix(\([[:word:]]+\))??!?:.+$'
+      order: 1
+    - title: "Performance Improvements"
+      regexp: '^.*?perf(\([[:word:]]+\))??!?:.+$'
+      order: 2
+    - title: "Documentation"
+      regexp: '^.*?docs(\([[:word:]]+\))??!?:.+$'
+      order: 3
+    - title: "Other Changes"
+      order: 999
+
+release:
+  github:
+    owner: Gaurav-Gosain
+    name: cider
+  draft: false
+  prerelease: auto
+  mode: replace
+  header: |
+    ## cider {{ .Tag }}
+
+    Apple Foundation Models, in Go. On-device, private, no cgo.
+
+    ### Installation
+
+    **Homebrew (macOS 26+, Apple silicon):**
+    ```bash
+    brew install Gaurav-Gosain/tap/cider
+    ```
+
+    **One-shot curl installer:**
+    ```bash
+    curl -fsSL https://raw.githubusercontent.com/Gaurav-Gosain/cider/main/install.sh | bash
+    ```
+
+    **Go install (requires building the Swift dylib separately, see README):**
+    ```bash
+    go install github.com/Gaurav-Gosain/cider@{{ .Tag }}
+    ```
+
+    **Manual download:**
+    Grab the `cider_{{ .Version }}_Darwin_arm64.tar.gz` archive below.
+    It contains both `cider` and `libFoundationModels.dylib`. Place
+    them side by side, or set `CIDER_LIB_PATH` to the directory
+    holding the dylib.
+
+    ### Requirements
+
+    - macOS 26 (Tahoe) or newer on Apple silicon.
+    - Apple Intelligence enabled in System Settings.
+  footer: |
+    ---
+
+    **Full Changelog**: https://github.com/Gaurav-Gosain/cider/compare/{{ .PreviousTag }}...{{ .Tag }}
+
+# Homebrew cask in Gaurav-Gosain/homebrew-tap. The cask drops the
+# binary AND the libFoundationModels.dylib into the same Caskroom
+# directory, then symlinks cider onto $PATH. cider's lib loader walks
+# the executable path with EvalSymlinks, so the symlink resolves back
+# into the Caskroom dir and finds the sibling dylib.
+homebrew_casks:
+  - name: cider
+    ids:
+      - cider-archive
+    repository:
+      owner: Gaurav-Gosain
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
+    homepage: https://github.com/Gaurav-Gosain/cider
+    description: "Apple Foundation Models, in Go. On-device, private, no cgo."
+    binaries: [cider]
+    commit_author:
+      name: goreleaserbot
+      email: bot@goreleaser.com
+    commit_msg_template: "Brew cask update for {{ .ProjectName }} version {{ .Tag }}"
+    # Drop the quarantine attribute on the dylib so dlopen won't bail
+    # on first launch. Gatekeeper still gates the binary itself; the
+    # caveat below tells the user how to clear it.
+    hooks:
+      post:
+        install: |
+          system_command "/usr/bin/xattr",
+            args: ["-dr", "com.apple.quarantine", staged_path],
+            sudo: false
+    caveats: |
+      cider needs Apple Intelligence enabled in System Settings → Apple
+      Intelligence & Siri.
+
+      The binary is not notarised. If macOS blocks the first run, open
+      System Settings → Privacy & Security and click "Allow Anyway",
+      or run:
+        xattr -dr com.apple.quarantine "$(brew --caskroom)/cider"

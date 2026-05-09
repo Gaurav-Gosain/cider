@@ -1,0 +1,43 @@
+# Build artifacts
+/bin/
+/dist/
+*.test
+*.out
+*.prof
+*.pprof
+*.trace
+
+# Swift build output
+foundation-models-c/.build/
+foundation-models-c/.swiftpm/
+
+# Binaries built at repo root (go install / Makefile / goreleaser)
+/cider
+/cider.exe
+
+# Coverage
+coverage.txt
+coverage.html
+*.cov
+
+# Editor / OS scratch
+.idea/
+.vscode/
+.claude/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Module vendor (regenerate with `go mod vendor`)
+/vendor/
+
+# Local env / secrets
+.env
+.env.local
+
+# Upstream Python SDK kept locally for parity reading; not committed.
+# Re-clone from https://github.com/apple/foundation-models-framework if you
+# want it in your worktree.
+/python-apple-fm-sdk/

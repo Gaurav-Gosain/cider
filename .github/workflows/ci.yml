@@ -1,0 +1,50 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: build + test
+    # macos-26 / Apple silicon: Foundation Models framework only ships
+    # on macOS 26+. macos-latest as of 2026 still resolves to macos-14
+    # in some images; pin to the explicit Tahoe runner.
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: select Xcode
+        run: sudo xcode-select -s /Applications/Xcode.app
+
+      - name: build Swift dylib
+        run: |
+          cd foundation-models-c
+          swift build -c release
+
+      - name: go vet
+        run: go vet ./...
+
+      - name: go test
+        env:
+          DYLD_LIBRARY_PATH: ${{ github.workspace }}/foundation-models-c/.build/arm64-apple-macosx/release
+        run: go test ./...
+
+      - name: go build
+        run: go build -o bin/cider .
+
+      - name: smoke
+        env:
+          DYLD_LIBRARY_PATH: ${{ github.workspace }}/foundation-models-c/.build/arm64-apple-macosx/release
+        run: ./bin/cider --help

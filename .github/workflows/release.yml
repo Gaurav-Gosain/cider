@@ -1,0 +1,44 @@
+name: release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  goreleaser:
+    name: build + publish release
+    # cider only ships for macOS 26+ on Apple silicon, so build the
+    # archive on the same OS we ship for. Lets goreleaser run the
+    # `swift build` before-hook directly.
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: select Xcode
+        run: sudo xcode-select -s /Applications/Xcode.app
+
+      # When HOMEBREW_TAP_GITHUB_TOKEN is missing the brew formula
+      # update is skipped so the GitHub release still goes through.
+      - name: run goreleaser
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          distribution: goreleaser
+          version: "~> v2"
+          args: >-
+            release --clean
+            ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN == '' && '--skip=homebrew' || '' }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HOMEBREW_TAP_GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
