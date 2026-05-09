@@ -15,19 +15,29 @@ Type "export DYLD_LIBRARY_PATH=$PWD/foundation-models-c/.build/arm64-apple-macos
 Enter
 Type "go build -o /tmp/tool-demo ./examples/tool"
 Enter
+# Pre-build the demo. Sleep is generous so go build finishes before
+# we clear; otherwise its output can leak into the recorded frames.
+Sleep 8s
 Type "clear"
 Enter
+Sleep 200ms
 Show
 
-Sleep 300ms
+Sleep 400ms
 
-Type "bat -p --paging=never examples/tool/main.go 2>/dev/null || cat examples/tool/main.go"
+# `bat -pp` is the shortcut for --plain --paging=never. Keeping the
+# command short matters: the VHS terminal is ~113 cols wide and a
+# longer command wraps into a junk-looking second line.
+# Lines 12-25 cover the CalculatorArgs struct (json/description/enum
+# tags) and the start of the fm.FuncTool call.
+Type "bat -pp --line-range 12:25 examples/tool/main.go"
 Sleep 200ms
 Enter
 Sleep 6s
 
 Type "clear"
 Enter
+Sleep 300ms
 
 Type "/tmp/tool-demo"
 Sleep 200ms
